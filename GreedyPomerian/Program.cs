@@ -55,8 +55,9 @@ namespace GreedyPomerian
             dogPen.Remove(start);
             double[] curPoint = start;
             double distance = 0.0;
-            
-            while (dogPen.GetCount() > 1)
+
+            int count; 
+            while ((count = dogPen.GetCount()) > 1)
             {
                 double ret;
                 KdTree cur = dogPen.GetNearestTo(curPoint, out ret);

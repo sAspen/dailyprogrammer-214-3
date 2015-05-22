@@ -28,6 +28,24 @@ namespace GreedyPomerian
             }
         }
 
+        public int Axis
+        {
+            get
+            {
+                return (_GetDepth() - 1) % Dimensions;
+            }
+        }
+
+        private int _GetDepth()
+        {
+            if (Parent != null)
+            {
+                return 1 + Parent._GetDepth();
+            }
+
+            return 1;
+        }
+
         private void _ConfirmParents()
         {
             if (LeftChild != null)
@@ -64,6 +82,34 @@ namespace GreedyPomerian
         public static KdTree New(List<double[]> points)
         {
             return KdTree._New(points, 0);
+        }
+
+        private KdTree _GetParentOf(double[] point, int depth)
+        {
+            int axis = depth % Dimensions;
+
+            if (point[axis] <= Point[axis])
+            {
+                if (LeftChild != null)
+                {
+                    return LeftChild._GetParentOf(point, depth + 1);
+                }
+                else
+                {
+                    return this;
+                }
+            }
+            else
+            {
+                if (RightChild != null)
+                {
+                    return RightChild._GetParentOf(point, depth + 1);
+                }
+                else
+                {
+                    return this;
+                }
+            }
         }
 
         private bool _Insert(double[] point, int depth)
@@ -159,7 +205,7 @@ namespace GreedyPomerian
                 if (Parent != null)
                 {
                     Parent._RemoveChild(this, children, depth);
-                } 
+                }
                 else
                 {
                     children = children.OrderBy(p => p[axis]).ToList();
@@ -266,7 +312,7 @@ namespace GreedyPomerian
             return Math.Sqrt(ret);
         }
 
-        private void _GetNearestTo(double[] targetPoint, ref KdTree currentBest, ref double currentBestDistance)
+        private void _GetNearestTo1(double[] targetPoint, ref KdTree currentBest, ref double currentBestDistance)
         {
             double childDistance;
             if (LeftChild != null)
@@ -276,7 +322,7 @@ namespace GreedyPomerian
                 {
                     currentBestDistance = childDistance;
                     currentBest = LeftChild;
-                    LeftChild._GetNearestTo(targetPoint, ref currentBest, ref currentBestDistance);
+                    LeftChild._GetNearestTo1(targetPoint, ref currentBest, ref currentBestDistance);
                 }
             }
             if (RightChild != null)
@@ -286,9 +332,66 @@ namespace GreedyPomerian
                 {
                     currentBestDistance = childDistance;
                     currentBest = RightChild;
-                    RightChild._GetNearestTo(targetPoint, ref currentBest, ref currentBestDistance);
+                    RightChild._GetNearestTo1(targetPoint, ref currentBest, ref currentBestDistance);
                 }
             }
+        }
+
+        private KdTree _GetNearestTo(double[] targetPoint, KdTree prev, ref KdTree currentBest, ref double currentBestDistance, ref HashSet<double[]> visited)
+        {
+            double distance = GetDistanceTo(targetPoint);
+            if (currentBestDistance > distance)
+            {
+                currentBestDistance = distance;
+                currentBest = this;
+            }
+
+            if (LeftChild != null && RightChild != null && 
+                Math.Abs(targetPoint[Axis] - Point[Axis]) < currentBestDistance)
+            {
+                if (visited.Contains(LeftChild.Point) && !visited.Contains(RightChild.Point))
+                {
+                    //currentBest = RightChild._GetParentOf(targetPoint, 0);
+                    //distance = currentBest.GetDistanceTo(targetPoint);
+                    return RightChild._GetNearestTo(targetPoint, ref currentBestDistance, ref visited);
+                }
+                if (visited.Contains(RightChild.Point) && !visited.Contains(LeftChild.Point))
+                {
+                    //currentBest = LeftChild._GetParentOf(targetPoint, 0);
+                    //distance = currentBest.GetDistanceTo(targetPoint);
+                    return LeftChild._GetNearestTo(targetPoint, ref currentBestDistance, ref visited);
+                }
+
+                if (Parent != null)
+                {
+                    visited.Add(Point);
+                    return Parent._GetNearestTo(targetPoint, this, ref currentBest, ref currentBestDistance, ref visited);
+                }
+                return currentBest;
+            }
+            else
+            {
+                if (Parent != null)
+                {
+                    visited.Add(Point);
+                    return Parent._GetNearestTo(targetPoint, this, ref currentBest, ref currentBestDistance, ref visited);
+                }
+                return currentBest;
+            }
+        }
+
+        public KdTree _GetNearestTo(double[] targetPoint, ref double distance, ref HashSet<double[]> visited)
+        {
+            KdTree currentBest = _GetParentOf(targetPoint, Axis);
+            distance = currentBest.GetDistanceTo(targetPoint);
+            visited.Add(currentBest.Point);
+
+            if (currentBest.Parent != null)
+            {
+                currentBest.Parent._GetNearestTo(targetPoint, currentBest, ref currentBest, ref distance, ref visited);
+            }
+
+            return currentBest;
         }
 
         public KdTree GetNearestTo(double[] targetPoint, out double distance)
@@ -299,11 +402,9 @@ namespace GreedyPomerian
                 return null;
             }
 
-            KdTree currentBest = this;
-            distance = GetDistanceTo(targetPoint);
-            _GetNearestTo(targetPoint, ref currentBest, ref distance);
+            HashSet<double[]> visited = new HashSet<double[]>();
 
-            return currentBest;
+            return _GetNearestTo(targetPoint, ref distance, ref visited);
         }
 
         public List<double[]> ToList()
