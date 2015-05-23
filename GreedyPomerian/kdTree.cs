@@ -8,14 +8,22 @@ namespace GreedyPomerian
 {
     class KdTree
     {
-        public double[] Point;
+        private static Random _RNG;
+        public double[] NodePoint;
         KdTree Parent, LeftChild, RightChild;
+        internal bool Ignore;
+
+        static KdTree()
+        {
+            _RNG = new Random();
+        }
 
         private KdTree(double[] point, KdTree leftChild, KdTree rightChild)
         {
-            Point = point;
+            NodePoint = point.Clone() as double[];
             LeftChild = leftChild;
             RightChild = rightChild;
+            Ignore = false;
 
             _ConfirmParents();
         }
@@ -24,7 +32,7 @@ namespace GreedyPomerian
         {
             get
             {
-                return Point.Length;
+                return NodePoint.Length;
             }
         }
 
@@ -32,7 +40,31 @@ namespace GreedyPomerian
         {
             get
             {
-                return (_GetDepth() - 1) % Dimensions;
+                return Depth % Dimensions;
+            }
+        }
+
+        public int Depth
+        {
+            get
+            {
+                return _GetDepth();
+            }
+        }
+
+        private KdTree _GetSibling(KdTree child)
+        {
+            if (child == LeftChild)
+            {
+                return RightChild;
+            }
+            else if (child == RightChild)
+            {
+                return LeftChild;
+            }
+            else
+            {
+                return null;
             }
         }
 
@@ -43,7 +75,7 @@ namespace GreedyPomerian
                 return 1 + Parent._GetDepth();
             }
 
-            return 1;
+            return 0;
         }
 
         private void _ConfirmParents()
@@ -71,12 +103,24 @@ namespace GreedyPomerian
             points = points.OrderBy(p => p[axis]).ToList();
             int median = points.Count / 2;
 
-            List<double[]> leftChildren = points.GetRange(0, median).ToList();
-            List<double[]> rightChildren = points.GetRange(median + 1, points.Count - median - 1).ToList();
+            KdTree tree = new KdTree(points[median].Clone() as double[], null, null);
+            points.Remove(points[median]);
+            while (points.Count > 0)
+            {
+                int i = _RNG.Next(points.Count);
+                double[] point = points[i].Clone() as double[];
+                points.RemoveAt(i);
+                tree.Insert(point.Clone() as double[]);
+            }
 
-            return new KdTree(points[median],
+            return tree;
+
+            /*List<double[]> leftChildren = points.Count > 0 ? points.GetRange(0, median).ToList() : null;
+            List<double[]> rightChildren = points.Count > 0 ? points.GetRange(median + 1, points.Count - median - 1).ToList() : null;
+
+            return new KdTree(points[median].Clone() as double[],
                 KdTree._New(leftChildren, depth + 1),
-                KdTree._New(rightChildren, depth + 1));
+                KdTree._New(rightChildren, depth + 1));*/
         }
 
         public static KdTree New(List<double[]> points)
@@ -84,15 +128,35 @@ namespace GreedyPomerian
             return KdTree._New(points, 0);
         }
 
-        private KdTree _GetParentOf(double[] point, int depth)
+        public void Assert()
         {
-            int axis = depth % Dimensions;
+            if (LeftChild != null)
+            {
+                if (!(LeftChild.NodePoint[Axis] < NodePoint[Axis]))
+                {
+                    throw new SystemException();
+                }
+                LeftChild.Assert();
+            }
+            if (RightChild != null)
+            {
+                if (!(RightChild.NodePoint[Axis] >= NodePoint[Axis]))
+                {
+                    throw new SystemException();
+                }
+                RightChild.Assert();
+            }
+        }
 
-            if (point[axis] <= Point[axis])
+        private KdTree _GetParentOf(double[] point)
+        {
+            int axis = Axis;
+
+            if (point[axis] < NodePoint[axis])
             {
                 if (LeftChild != null)
                 {
-                    return LeftChild._GetParentOf(point, depth + 1);
+                    return LeftChild._GetParentOf(point);
                 }
                 else
                 {
@@ -103,7 +167,7 @@ namespace GreedyPomerian
             {
                 if (RightChild != null)
                 {
-                    return RightChild._GetParentOf(point, depth + 1);
+                    return RightChild._GetParentOf(point);
                 }
                 else
                 {
@@ -112,19 +176,19 @@ namespace GreedyPomerian
             }
         }
 
-        private bool _Insert(double[] point, int depth)
+        private bool _Insert(double[] point)
         {
-            int axis = depth % Dimensions;
+            int axis = Axis;
 
-            if (point[axis] <= Point[axis])
+            if (point[axis] < NodePoint[axis])
             {
                 if (LeftChild != null)
                 {
-                    return LeftChild._Insert(point, depth + 1);
+                    return LeftChild._Insert(point);
                 }
                 else
                 {
-                    LeftChild = new KdTree(point, null, null);
+                    LeftChild = new KdTree(point.Clone() as double[], null, null);
                     _ConfirmParents();
                     return true;
                 }
@@ -133,11 +197,11 @@ namespace GreedyPomerian
             {
                 if (RightChild != null)
                 {
-                    return RightChild._Insert(point, depth + 1);
+                    return RightChild._Insert(point);
                 }
                 else
                 {
-                    RightChild = new KdTree(point, null, null);
+                    RightChild = new KdTree(point.Clone() as double[], null, null);
                     _ConfirmParents();
                     return true;
                 }
@@ -151,10 +215,10 @@ namespace GreedyPomerian
                 return false;
             }
 
-            return _Insert(point, 0);
+            return _Insert(point.Clone() as double[]);
         }
 
-        private void _RemoveChild(KdTree child, List<double[]> grandchildren, int depth)
+        private void _RemoveChild(KdTree child, List<double[]> grandchildren)
         {
             if (child == LeftChild)
             {
@@ -164,7 +228,7 @@ namespace GreedyPomerian
                 }
                 else
                 {
-                    LeftChild = KdTree._New(grandchildren, depth);
+                    LeftChild = KdTree._New(grandchildren, _GetDepth() + 1);
                 }
             }
             else
@@ -175,103 +239,152 @@ namespace GreedyPomerian
                 }
                 else
                 {
-                    RightChild = KdTree._New(grandchildren, depth);
+                    RightChild = KdTree._New(grandchildren, _GetDepth() + 1);
                 }
             }
 
             _ConfirmParents();
         }
 
-        private bool _Remove(double[] point, int depth)
+        private static bool _Remove(double[] point, KdTree node)
         {
-            int axis = depth % Dimensions;
-
-            if (point.SequenceEqual(Point))
+            if (node != null)
             {
                 List<double[]> children = new List<double[]>();
 
-                if (LeftChild != null)
+                if (node.LeftChild != null)
                 {
-                    children = LeftChild.ToList().
+                    children = node.LeftChild.ToList().
                         Concat(children).ToList();
                 }
 
-                if (RightChild != null)
+                if (node.RightChild != null)
                 {
                     children = children.
-                        Concat(RightChild.ToList()).ToList();
+                        Concat(node.RightChild.ToList()).ToList();
                 }
 
-                if (Parent != null)
+                if (node.Parent != null)
                 {
-                    Parent._RemoveChild(this, children, depth);
+                    node.Parent._RemoveChild(node, children);
                 }
                 else
                 {
-                    children = children.OrderBy(p => p[axis]).ToList();
+                    children = children.OrderBy(p => p[node.Axis]).ToList();
                     int median = children.Count / 2;
 
-                    List<double[]> leftChildren = children.GetRange(0, median).ToList();
-                    List<double[]> rightChildren = children.GetRange(median + 1, children.Count - median - 1).ToList();
+                    node.NodePoint = children[median].Clone() as double[];
+                    node.LeftChild = node.RightChild = null;
 
-                    Point = children[median];
-                    LeftChild = KdTree._New(leftChildren, depth + 1);
-                    RightChild = KdTree._New(rightChildren, depth + 1);
+                    children.Remove(children[median]);
+                    while (children.Count > 0)
+                    {
+                        int i = _RNG.Next(children.Count);
+                        double[] child = children[i].Clone() as double[];
+                        children.RemoveAt(i);
+                        node.Insert(child.Clone() as double[]);
+                    }
+
+
+                    
+                    /*List<double[]> leftChildren = children.Count > 0 ? 
+                        children.GetRange(0, median).ToList() : null;
+                    List<double[]> rightChildren = children.Count > 0 ? 
+                        children.GetRange(median + 1, children.Count - median - 1).ToList() : null;
+
+                    node.Point = children[median].Clone() as double[];
+                    node.LeftChild = KdTree._New(leftChildren, node._GetDepth() + 1);
+                    node.RightChild = KdTree._New(rightChildren, node._GetDepth() + 1);*/
+
+                    node._ConfirmParents();
                 }
-
-                _ConfirmParents();
 
                 return true;
             }
 
-            if (point[axis] <= Point[axis])
-            {
-                if (LeftChild != null)
-                {
-                    return LeftChild._Remove(point, depth + 1);
-                }
-                else
-                {
-                    return false;
-                }
-            }
-            else
-            {
-                if (RightChild != null)
-                {
-                    return RightChild._Remove(point, depth + 1);
-                }
-                else
-                {
-                    return false;
-                }
-            }
+            return false;
         }
 
         public bool Remove(double[] point)
         {
-            if (point.Length != Dimensions)
-            {
-                return false;
-            }
-
-            return _Remove(point, 0);
+            Find(point).Ignore = true;
+            return true;
+            //return _Remove(point, Find(point));
         }
 
-        private bool _Contains(double[] point, int depth)
+        public KdTree Find(double[] point)
         {
-            if (point.SequenceEqual(Point))
+            if (!Ignore && point.SequenceEqual(NodePoint))
+            {
+                return this;
+            }
+
+            int axis = Axis;
+
+            if (point[axis] < NodePoint[axis])
+            {
+                if (LeftChild != null)
+                {
+                    return LeftChild.Find(point);
+                }
+                else
+                {
+                    return null;
+                }
+            }
+            else
+            {
+                if (RightChild != null)
+                {
+                    return RightChild.Find(point);
+                }
+                else
+                {
+                    return null;
+                }
+            }
+        }
+
+        public KdTree FindBrute(double[] point)
+        {
+            if (!Ignore && point.SequenceEqual(NodePoint))
+            {
+                return this;
+            }
+
+            if (LeftChild != null)
+            {
+                KdTree ret = LeftChild.FindBrute(point);
+                if (ret != null)
+                {
+                    return ret;
+                }
+            }
+            if (RightChild != null)
+            {
+                KdTree ret = RightChild.FindBrute(point);
+                if (ret != null)
+                {
+                    return ret;
+                }
+            }
+            return null;
+        }
+
+        private bool _Contains(double[] point)
+        {
+            if (!Ignore && point.SequenceEqual(NodePoint))
             {
                 return true;
             }
 
-            int axis = depth % Dimensions;
+            int axis = Axis;
 
-            if (point[axis] <= Point[axis])
+            if (point[axis] < NodePoint[axis])
             {
                 if (LeftChild != null)
                 {
-                    return LeftChild._Contains(point, depth + 1);
+                    return LeftChild._Contains(point);
                 }
                 else
                 {
@@ -282,7 +395,7 @@ namespace GreedyPomerian
             {
                 if (RightChild != null)
                 {
-                    return RightChild._Contains(point, depth + 1);
+                    return RightChild._Contains(point);
                 }
                 else
                 {
@@ -293,12 +406,12 @@ namespace GreedyPomerian
 
         public bool Contains(double[] point)
         {
-            if (point.Length != Dimensions)
+            if (!Ignore && point.Length != Dimensions)
             {
                 return false;
             }
 
-            return _Contains(point, 0);
+            return _Contains(point);
         }
 
         public double GetDistanceTo(double[] targetPoint)
@@ -306,112 +419,74 @@ namespace GreedyPomerian
             double ret = 0.0;
             for (int i = 0; i < Dimensions; i++)
             {
-                ret += Math.Pow(Point[i] - targetPoint[i], 2);
+                ret += Math.Pow(NodePoint[i] - targetPoint[i], 2);
             }
 
-            return Math.Sqrt(ret);
+            return ret;
         }
 
-        private void _GetNearestTo1(double[] targetPoint, ref KdTree currentBest, ref double currentBestDistance)
+
+        private void _GetNearestTo(double[] targetPoint, ref KdTree currentBest, ref double bestDist)
         {
-            double childDistance;
-            if (LeftChild != null)
+            if (targetPoint[Axis] < NodePoint[Axis])
             {
-                childDistance = LeftChild.GetDistanceTo(targetPoint);
-                if (currentBestDistance > childDistance)
+                if (LeftChild != null)
                 {
-                    currentBestDistance = childDistance;
-                    currentBest = LeftChild;
-                    LeftChild._GetNearestTo1(targetPoint, ref currentBest, ref currentBestDistance);
+                    LeftChild._GetNearestTo(targetPoint, ref currentBest, ref bestDist);
                 }
             }
-            if (RightChild != null)
+            else if (RightChild != null)
             {
-                childDistance = RightChild.GetDistanceTo(targetPoint);
-                if (currentBestDistance > childDistance)
-                {
-                    currentBestDistance = childDistance;
-                    currentBest = RightChild;
-                    RightChild._GetNearestTo1(targetPoint, ref currentBest, ref currentBestDistance);
-                }
-            }
-        }
-
-        private KdTree _GetNearestTo(double[] targetPoint, KdTree prev, ref KdTree currentBest, ref double currentBestDistance, ref HashSet<double[]> visited)
-        {
-            double distance = GetDistanceTo(targetPoint);
-            if (currentBestDistance > distance)
-            {
-                currentBestDistance = distance;
-                currentBest = this;
+                RightChild._GetNearestTo(targetPoint, ref currentBest, ref bestDist);
             }
 
-            if (LeftChild != null && RightChild != null && 
-                Math.Abs(targetPoint[Axis] - Point[Axis]) < currentBestDistance)
+            if (!Ignore)
             {
-                if (visited.Contains(LeftChild.Point) && !visited.Contains(RightChild.Point))
-                {
-                    //currentBest = RightChild._GetParentOf(targetPoint, 0);
-                    //distance = currentBest.GetDistanceTo(targetPoint);
-                    return RightChild._GetNearestTo(targetPoint, ref currentBestDistance, ref visited);
-                }
-                if (visited.Contains(RightChild.Point) && !visited.Contains(LeftChild.Point))
-                {
-                    //currentBest = LeftChild._GetParentOf(targetPoint, 0);
-                    //distance = currentBest.GetDistanceTo(targetPoint);
-                    return LeftChild._GetNearestTo(targetPoint, ref currentBestDistance, ref visited);
-                }
+                double distance = GetDistanceTo(targetPoint);
 
-                if (Parent != null)
+                if (distance < bestDist)
                 {
-                    visited.Add(Point);
-                    return Parent._GetNearestTo(targetPoint, this, ref currentBest, ref currentBestDistance, ref visited);
+                    bestDist = distance;
+                    currentBest = this;
                 }
-                return currentBest;
             }
-            else
+
+            if (Math.Pow(targetPoint[Axis] - NodePoint[Axis], 2) < bestDist)
             {
-                if (Parent != null)
+                if (targetPoint[Axis] < NodePoint[Axis])
                 {
-                    visited.Add(Point);
-                    return Parent._GetNearestTo(targetPoint, this, ref currentBest, ref currentBestDistance, ref visited);
+                    if (RightChild != null)
+                    {
+                        RightChild._GetNearestTo(targetPoint, ref currentBest, ref bestDist);
+                    }
                 }
-                return currentBest;
+                else if (LeftChild != null)
+                {
+                    LeftChild._GetNearestTo(targetPoint, ref currentBest, ref bestDist);
+                }
             }
         }
 
-        public KdTree _GetNearestTo(double[] targetPoint, ref double distance, ref HashSet<double[]> visited)
+        public KdTree GetNearestTo(double[] targetPoint)
         {
-            KdTree currentBest = _GetParentOf(targetPoint, Axis);
-            distance = currentBest.GetDistanceTo(targetPoint);
-            visited.Add(currentBest.Point);
-
-            if (currentBest.Parent != null)
-            {
-                currentBest.Parent._GetNearestTo(targetPoint, currentBest, ref currentBest, ref distance, ref visited);
-            }
-
-            return currentBest;
-        }
-
-        public KdTree GetNearestTo(double[] targetPoint, out double distance)
-        {
-            distance = double.PositiveInfinity;
             if (targetPoint.Length != Dimensions)
             {
                 return null;
             }
 
-            HashSet<double[]> visited = new HashSet<double[]>();
+            KdTree currentBest = null;
+            double bestDist = Double.PositiveInfinity;
 
-            return _GetNearestTo(targetPoint, ref distance, ref visited);
+            _GetNearestTo(targetPoint, ref currentBest, ref bestDist);
+
+            return currentBest;
         }
 
         public List<double[]> ToList()
         {
             List<double[]> ret = new List<double[]>();
 
-            ret.Add(Point);
+            ret.Add(NodePoint.Clone() as double[]);
             if (LeftChild != null)
             {
                 ret = LeftChild.ToList().Concat(ret).ToList();
@@ -425,9 +500,23 @@ namespace GreedyPomerian
             return ret;
         }
 
+        public override string ToString()
+        {
+            string s = "{ ";
+
+            for (int i = 0; i < NodePoint.Length; i++)
+            {
+                s += NodePoint[i] + ", ";
+            }
+
+            s = s.Substring(0, s.Length - 2) + " }";
+
+            return s;
+        }
+
         public int GetCount()
         {
-            int ret = 1;
+            int ret = Ignore ? 0 : 1;
 
             if (LeftChild != null)
             {

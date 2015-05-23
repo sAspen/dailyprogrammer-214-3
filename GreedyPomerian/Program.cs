@@ -15,6 +15,7 @@ namespace GreedyPomerian
             KdTree dogPen;
             List<double[]> points = null;
             double[] start = { 0.5, 0.5 };
+            int numberOfTreats = 0, count;
 
             try
             {
@@ -24,19 +25,19 @@ namespace GreedyPomerian
 
                     if ((line = sr.ReadLine()) != null)
                     {
-                        int numberOfTreats = Int32.Parse(line);
+                        numberOfTreats = Int32.Parse(line);
 
                         points = new List<double[]>(numberOfTreats + 1);
                         points.Add(start);
 
                         CultureInfo culture = CultureInfo.GetCultureInfo("en-US");
-                        while (numberOfTreats-- > 0 && (line = sr.ReadLine()) != null)
+                        count = numberOfTreats;
+                        while (count-- > 0 && (line = sr.ReadLine()) != null)
                         {
                             string[] tokens = line.Split(' ');
                             double[] point = { Double.Parse(tokens[0], culture), 
                                 Double.Parse(tokens[1], culture) };
-                            points.Add(point);
-                            //Console.WriteLine("Added " + line);
+                            points.Add(point.Clone() as double[]);
                         }
                     }
 
@@ -51,21 +52,33 @@ namespace GreedyPomerian
             }
 
             dogPen = KdTree.New(points);
-
             dogPen.Remove(start);
-            double[] curPoint = start;
+
+            double[] targetPoint = start.Clone() as double[];
             double distance = 0.0;
 
-            int count; 
-            while ((count = dogPen.GetCount()) > 1)
+            count = numberOfTreats; 
+            while (count-- > 0)
             {
-                double ret;
-                KdTree cur = dogPen.GetNearestTo(curPoint, out ret);
-                curPoint = cur.Point;
-                dogPen.Remove(cur.Point);
-                distance += ret;
+                KdTree cur = dogPen.GetNearestTo(targetPoint);
+                distance += Math.Sqrt(cur.GetDistanceTo(targetPoint));
+                targetPoint = cur.NodePoint.Clone() as double[];
+                /*if (count == 24962)
+                {
+                    Console.WriteLine("Hello, world");
+                }*/
+                dogPen.Remove(targetPoint);
+                /*if (count == 24962)
+                {
+                    dogPen.Assert();
+                }*/
+                /*if (dogPen.FindBrute(targetPoint) != null)
+                {
+                    throw new SystemException();
+                }
+                dogPen.Assert();*/
             }
-            distance += dogPen.GetDistanceTo(curPoint);
+            //distance += Math.Sqrt(dogPen.GetDistanceTo(targetPoint));
 
             Console.WriteLine(distance);
         }
