@@ -56,9 +56,6 @@ namespace GreedyPomerian
             count = numberOfTreats; 
             while (count-- > 0)
             {
-                if (count == 96) {
-
-                }
                 double[] current = dogPen.GetNearestTo(targetPoint);
                 distance += Math.Sqrt(KdTree.GetDistanceTo(current, targetPoint));
                 targetPoint = (double[]) current.Clone();
