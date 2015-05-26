@@ -2,9 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Trees;
 
 namespace GreedyPomerian
 {
@@ -28,7 +26,6 @@ namespace GreedyPomerian
                         numberOfTreats = Int32.Parse(line);
 
                         points = new List<double[]>(numberOfTreats + 1);
-                        points.Add(start);
 
                         CultureInfo culture = CultureInfo.GetCultureInfo("en-US");
                         count = numberOfTreats;
@@ -51,8 +48,7 @@ namespace GreedyPomerian
                 throw;
             }
 
-            dogPen = KdTree.New(points);
-            dogPen.Remove(start);
+            dogPen = new KdTree(points);
 
             double[] targetPoint = start.Clone() as double[];
             double distance = 0.0;
@@ -60,25 +56,16 @@ namespace GreedyPomerian
             count = numberOfTreats; 
             while (count-- > 0)
             {
-                KdTree cur = dogPen.GetNearestTo(targetPoint);
-                distance += Math.Sqrt(cur.GetDistanceTo(targetPoint));
-                targetPoint = cur.NodePoint.Clone() as double[];
-                /*if (count == 24962)
-                {
-                    Console.WriteLine("Hello, world");
-                }*/
-                dogPen.Remove(targetPoint);
-                /*if (count == 24962)
-                {
-                    dogPen.Assert();
-                }*/
-                /*if (dogPen.FindBrute(targetPoint) != null)
-                {
+                if (count == 96) {
+
+                }
+                double[] current = dogPen.GetNearestTo(targetPoint);
+                distance += Math.Sqrt(KdTree.GetDistanceTo(current, targetPoint));
+                targetPoint = (double[]) current.Clone();
+                if (!dogPen.Remove(targetPoint)) {
                     throw new SystemException();
                 }
-                dogPen.Assert();*/
             }
-            //distance += Math.Sqrt(dogPen.GetDistanceTo(targetPoint));
 
             Console.WriteLine(distance);
         }
